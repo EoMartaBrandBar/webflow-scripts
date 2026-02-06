@@ -201,7 +201,7 @@ categories
 }).filter(Boolean);
 
 console.log(`[GRID] Összes érvényes CMS elem: ${items.length}, összes kategória: ${totalCategories}`);
-console.log(`[GRID] Aktív filterek száma: ${active.length}`);
+
 
 
 function getActiveCategories() {
@@ -569,29 +569,42 @@ this.hoveredMesh = null;
 
 this.renderer.domElement.addEventListener("pointerdown", (ev) => {
   if (!this.allMeshesLoaded) return;
-  
-  // Threshold check MINDIG (isDown még false lehet)
-  if (Math.abs(this.startX - ev.clientX) < 3 && 
-      Math.abs(this.startY - ev.clientY) < 3 &&
-      !this.isDragging) {
-    
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-    this.mouse.set(x, y);
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.clickableMeshes, true);
-    
-    if (intersects.length > 0) {
-      const mesh = intersects[0].object;
-      const link = mesh.userData.link;
-      if (link && link !== "#") {
-        ev.preventDefault();
-        window.location.href = link;
-      }
+
+  console.log("[GRID] pointerdown", ev.pointerType, ev.clientX, ev.clientY);
+
+  if (this.isDragging) {
+    console.log("[GRID] pointerdown: isDragging=true, nem navigálok");
+    return;
+  }
+
+  const rect = this.renderer.domElement.getBoundingClientRect();
+  const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  this.mouse.set(x, y);
+  this.raycaster.setFromCamera(this.mouse, this.camera);
+  const intersects = this.raycaster.intersectObjects(this.clickableMeshes, true);
+
+  console.log("[GRID] intersects count:", intersects.length);
+
+  if (intersects.length > 0) {
+    const mesh = intersects[0].object;
+    const link = mesh.userData.link;
+    console.log("[GRID] hit mesh link:", link);
+
+    if (link && link !== "#") {
+      ev.preventDefault();
+      // window.location.href = link;
+      window.open(link, "_self");
+      console.log("[GRID] próbálok navigálni:", link);
+    } else {
+      console.log("[GRID] nincs érvényes link userData.link-ben");
     }
+  } else {
+    console.log("[GRID] nincs intersect");
   }
 }, { passive: false });
+
+
 
 render() {
 this.composer.render();
