@@ -20,8 +20,7 @@ const IMAGE_RES = 512;
 const CANVAS_W = IMAGE_RES;
 const CANVAS_H = Math.round(IMAGE_RES * (TILE_HEIGHT / TILE_WIDTH));
 
-const FALLBACK_URL = `https://picsum.photos/${IMAGE_RES}?random=1`;  // Backtick + `
-
+const FALLBACK_URL = `https://picsum.photos/${IMAGE_RES}?random=1`;
 
 const distortionShader = {
 uniforms: {
@@ -148,7 +147,6 @@ return texture;
 
 function getCMSItemsFromDOM() {
 const nodes = Array.from(document.querySelectorAll('[grid="item"]'));
-let totalCategories = 0;
 
 const items = nodes.map((node, index) => {
 // LINK
@@ -170,7 +168,7 @@ else if (imgEl.dataset && imgEl.dataset.src) imgUrl = imgEl.dataset.src;
 else {
 const bg = imgEl.style && imgEl.style.backgroundImage;
 if (bg && bg.startsWith("url")) {
-imgUrl = bg.replace(/url\(['"]?/, "").replace(/['"]?\)$/, "");
+imgUrl = bg.replace(/url\\(['"]?/, "").replace(/['"]?\\)$/, "");
 }
 }
 }
@@ -178,14 +176,6 @@ imgUrl = bg.replace(/url\(['"]?/, "").replace(/['"]?\)$/, "");
 // SZÖVEG (div [grid="text"]) – ha nem kell, ezt kiveheted
 let textEl = node.querySelector('[grid="text"]');
 let textContent = textEl ? textEl.textContent.trim() : null;
-
-// KATEGÓRIÁK
-const categoryEls = node.querySelectorAll('[filter-field="category"].filter_text_target');
-const categories = Array.from(categoryEls)
-.map(el => el.textContent.trim())
-.filter(Boolean);
-
-totalCategories += categories.length;
 
 // Csak akkor használjuk, ha van link ÉS kép
 if (!link || !imgUrl) {
@@ -195,32 +185,13 @@ return null;
 return {
 link,
 imgUrl,
-textContent,
-categories
+textContent
 };
 }).filter(Boolean);
 
-console.log(`[GRID] Összes érvényes CMS elem: ${items.length}, összes kategória: ${totalCategories}`);
+console.log(`[GRID] Összes érvényes CMS elem: ${items.length}`);
 
-
-
-function getActiveCategories() {
-const activeNodes = Array.from(document.querySelectorAll('.filter_text[filter="true"]'));
-const active = activeNodes.map(el => el.textContent.trim()).filter(Boolean);
-console.log(`[GRID] Aktív filterek száma: ${active.length}`);
-return active;
-}
-
-function computeFilteredItems(allItems) {
-const active = getActiveCategories();
-if (!active.length) {
-return allItems.slice();
-}
-const filtered = allItems.filter(item => {
-if (!item.categories || !item.categories.length) return false;
-return item.categories.some(cat => active.includes(cat));
-});
-return filtered;
+return items;
 }
 
 const TILE_GROUPS = [
@@ -268,14 +239,14 @@ this.clickableMeshes = [];
 
 this.isDown = false;
 this.isDragging = false;
-this.DRAG_THRESHOLD = 5;
+this.DRAG_THRESHOLD = 20;
 this.startX = 0;
 this.startY = 0;
 this.hoveredMesh = null;
 this.allMeshesLoaded = false;
 
 this.allItems = getCMSItemsFromDOM();
-this.currentItems = [];
+this.currentItems = this.buildRepeatedItems(this.allItems);
 this.baseMeshes = [];
 }
 
@@ -287,7 +258,6 @@ this.renderer.setClearColor(0x000000, 0);
 
 this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 }
-
 
 setupCamera() {
 this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
@@ -308,9 +278,6 @@ this.composer.addPass(shaderPass);
 }
 
 async addObjects() {
-const filtered = computeFilteredItems(this.allItems);
-this.currentItems = this.buildRepeatedItems(filtered);
-
 const startX = -((BASE_COLS - 1) * TILE_SPACE_X) / 2;
 const startY = ((BASE_ROWS - 1) * TILE_SPACE_Y) / 2;
 
@@ -334,8 +301,7 @@ const mesh = new THREE.Mesh(geometry, material);
 mesh.position.set(posX, posY, 0);
 
 const item = this.currentItems[idx];
-const isUV = item && item.categories && item.categories.includes("ÜV");
-mesh.userData.link = (item && !isUV) ? item.link : null;
+mesh.userData.link = item ? item.link : null;
 
 this.baseMeshes.push(mesh);
 idx++;
@@ -377,72 +343,28 @@ window.addEventListener("logo-finished", () => fadeInGrid(), { once: true });
 }
 }
 
-buildRepeatedItems(filtered) {
-if (!filtered || !filtered.length) {
+buildRepeatedItems(items) {
+if (!items || !items.length) {
 const arr = [];
 for (let i = 0; i < BASE_COLS * BASE_ROWS; i++) {
 arr.push({
 link: "#",
 imgUrl: null,
-textContent: null,
-categories: []
+textContent: null
 });
 }
 return arr;
 }
 
 const result = [];
-const len = filtered.length;
+const len = items.length;
 const totalSlots = BASE_COLS * BASE_ROWS;
 
 for (let i = 0; i < totalSlots; i++) {
-const item = filtered[i % len];
+const item = items[i % len];
 result.push(item);
 }
 return result;
-}
-
-async applyFilter() {
-if (!this.allMeshesLoaded) return;
-
-const filtered = computeFilteredItems(this.allItems);
-this.currentItems = this.buildRepeatedItems(filtered);
-
-const texturePromises = this.currentItems.slice(0, BASE_COLS * BASE_ROWS).map(item =>
-createImageWithTextTexture(item)
-);
-const textures = await Promise.all(texturePromises);
-
-this.baseMeshes.forEach((mesh, i) => {
-const tex = textures[i] || textures[0];
-mesh.material.map = tex;
-mesh.material.needsUpdate = true;
-const item = this.currentItems[i];
-const isUV = item && item.categories && item.categories.includes("ÜV");
-mesh.userData.link = (item && !isUV) ? item.link : null;
-});
-
-TILE_GROUPS.forEach(obj => {
-obj.group.children.forEach((clone, i) => {
-const tex = textures[i] || textures[0];
-clone.material.map = tex;
-clone.material.needsUpdate = true;
-const item = this.currentItems[i];
-const isUV = item && item.categories && item.categories.includes("ÜV");
-clone.userData.link = (item && !isUV) ? item.link : null;
-});
-});
-
-const allMaterials = [];
-TILE_GROUPS.forEach(obj => {
-obj.group.children.forEach(mesh => allMaterials.push(mesh.material));
-});
-
-gsap.fromTo(
-allMaterials,
-{ opacity: 0 },
-{ opacity: 1, duration: 0.6, stagger: 0.01, ease: "power2.out" }
-);
 }
 
 setPositions() {
@@ -519,7 +441,11 @@ this.scroll.target = { x: this.scroll.position.x - distanceX, y: this.scroll.pos
 }
 
 onTouchUp() {
-this.isDown = false;
+  this.isDown = false;
+  // egy kicsi késleltetéssel engedjük el a drag-et, hogy a tap még működjön
+  setTimeout(() => {
+    this.isDragging = false;
+  }, 50);
 }
 
 onWheel(e) {
@@ -567,19 +493,16 @@ this.hoveredMesh = null;
 }
 });
 
-this.renderer.domElement.addEventListener("pointerdown", (ev) => {
+const onTap = (clientX, clientY, ev) => {
   if (!this.allMeshesLoaded) return;
 
-  console.log("[GRID] pointerdown", ev.pointerType, ev.clientX, ev.clientY);
-
-  if (this.isDragging) {
-    console.log("[GRID] pointerdown: isDragging=true, nem navigálok");
-    return;
-  }
+  // ha nagyon húztad az ujjad, ne kattintson
+  if (this.isDragging) return;
 
   const rect = this.renderer.domElement.getBoundingClientRect();
-  const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-  const y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
   this.mouse.set(x, y);
   this.raycaster.setFromCamera(this.mouse, this.camera);
   const intersects = this.raycaster.intersectObjects(this.clickableMeshes, true);
@@ -593,7 +516,6 @@ this.renderer.domElement.addEventListener("pointerdown", (ev) => {
 
     if (link && link !== "#") {
       ev.preventDefault();
-      // window.location.href = link;
       window.open(link, "_self");
       console.log("[GRID] próbálok navigálni:", link);
     } else {
@@ -602,9 +524,24 @@ this.renderer.domElement.addEventListener("pointerdown", (ev) => {
   } else {
     console.log("[GRID] nincs intersect");
   }
+};
+
+// egér (desktop)
+this.renderer.domElement.addEventListener("pointerdown", (ev) => {
+  if (ev.pointerType === "mouse") {
+    console.log("[GRID] pointerdown (mouse)", ev.clientX, ev.clientY);
+    onTap(ev.clientX, ev.clientY, ev);
+  }
 }, { passive: false });
 
-
+// érintés (mobil)
+this.renderer.domElement.addEventListener("touchend", (ev) => {
+  if (!ev.changedTouches || !ev.changedTouches[0]) return;
+  const t = ev.changedTouches[0];
+  console.log("[GRID] touchend", t.clientX, t.clientY);
+  onTap(t.clientX, t.clientY, ev);
+}, { passive: false });
+}
 
 render() {
 this.composer.render();
