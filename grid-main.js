@@ -16,13 +16,11 @@ const TOTAL_GRID_SIZE_X = GRID_SIZE_X * 3;
 const TOTAL_GRID_SIZE_Y = GRID_SIZE_Y * 3;
 const IMAGE_RES = 512;
 
-// Canvas méret, amin a kép + szöveg készül
 const CANVAS_W = IMAGE_RES;
 const CANVAS_H = Math.round(IMAGE_RES * (TILE_HEIGHT / TILE_WIDTH));
 
 const FALLBACK_URL = `https://picsum.photos/${IMAGE_RES}?random=1`;
 
-// touch detektálás (hover kikapcsolásához)
 const isTouchDevice =
   "ontouchstart" in window ||
   (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
@@ -64,7 +62,6 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Kép + opcionális szöveg egyetlen CanvasTexture-be
 async function createImageWithTextTexture(item, radius = 24) {
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_W;
@@ -72,7 +69,6 @@ async function createImageWithTextTexture(item, radius = 24) {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-  // Háttér / kép kirajzolás
   ctx.save();
   roundRectPath(ctx, 0, 0, CANVAS_W, CANVAS_H, radius);
   ctx.clip();
@@ -105,7 +101,6 @@ async function createImageWithTextTexture(item, radius = 24) {
   }
   ctx.restore();
 
-  // Szöveg rárajzolása (ha használsz textContent-et)
   if (item.textContent) {
     const padding = 24;
     const textAreaHeight = CANVAS_H * 0.4;
@@ -155,7 +150,6 @@ function getCMSItemsFromDOM() {
   const nodes = Array.from(document.querySelectorAll('[grid="item"]'));
 
   const items = nodes.map((node) => {
-    // LINK
     let linkEl = node.querySelector('[grid="link"]');
     let link = null;
     if (linkEl) {
@@ -164,7 +158,6 @@ function getCMSItemsFromDOM() {
       else if (linkEl.dataset && linkEl.dataset.href) link = linkEl.dataset.href;
     }
 
-    // KÉP
     let imgEl = node.querySelector('[grid="img"]');
     let imgUrl = null;
     if (imgEl) {
@@ -174,16 +167,14 @@ function getCMSItemsFromDOM() {
       else {
         const bg = imgEl.style && imgEl.style.backgroundImage;
         if (bg && bg.startsWith("url")) {
-          imgUrl = bg.replace(/url\(['"]?/, "").replace(/['"]?\)$/, "");
+          imgUrl = bg.replace(/url\\(['"]?/, "").replace(/['"]?\\)$/, "");
         }
       }
     }
 
-    // SZÖVEG (div [grid="text"])
     let textEl = node.querySelector('[grid="text"]');
     let textContent = textEl ? textEl.textContent.trim() : null;
 
-    // Csak akkor használjuk, ha van link ÉS kép
     if (!link || !imgUrl) {
       return null;
     }
@@ -194,8 +185,6 @@ function getCMSItemsFromDOM() {
       textContent
     };
   }).filter(Boolean);
-
-  console.log(`[GRID] Összes érvényes CMS elem: ${items.length}`);
 
   return items;
 }
@@ -447,7 +436,6 @@ class App {
 
   onTouchUp() {
     this.isDown = false;
-    // egy kicsi késleltetéssel engedjük el a drag-et, hogy a tap még működjön
     setTimeout(() => {
       this.isDragging = false;
     }, 50);
@@ -473,7 +461,6 @@ class App {
     window.addEventListener("touchmove", this.onTouchMove.bind(this));
     window.addEventListener("touchend", this.onTouchUp.bind(this));
 
-    // HOVER ANIMÁCIÓ – csak nem-touch eszközre
     if (!isTouchDevice) {
       this.renderer.domElement.addEventListener("mousemove", (ev) => {
         if (!this.allMeshesLoaded) return;
@@ -522,7 +509,6 @@ class App {
     const onTap = (clientX, clientY, ev) => {
       if (!this.allMeshesLoaded) return;
 
-      // ha nagyon húztad az ujjad, ne kattintson
       if (this.isDragging) return;
 
       const rect = this.renderer.domElement.getBoundingClientRect();
@@ -533,38 +519,26 @@ class App {
       this.raycaster.setFromCamera(this.mouse, this.camera);
       const intersects = this.raycaster.intersectObjects(this.clickableMeshes, true);
 
-      console.log("[GRID] intersects count:", intersects.length);
-
       if (intersects.length > 0) {
         const mesh = intersects[0].object;
         const link = mesh.userData.link;
-        console.log("[GRID] hit mesh link:", link);
 
         if (link && link !== "#") {
           ev.preventDefault();
           window.open(link, "_self");
-          console.log("[GRID] próbálok navigálni:", link);
-        } else {
-          console.log("[GRID] nincs érvényes link userData.link-ben");
         }
-      } else {
-        console.log("[GRID] nincs intersect");
       }
     };
 
-    // egér (desktop) – pointerdown a canvas-on
     this.renderer.domElement.addEventListener("pointerdown", (ev) => {
       if (ev.pointerType === "mouse") {
-        console.log("[GRID] pointerdown (mouse)", ev.clientX, ev.clientY);
         onTap(ev.clientX, ev.clientY, ev);
       }
     }, { passive: false });
 
-    // érintés (mobil) – tap a canvas-on
     this.renderer.domElement.addEventListener("touchend", (ev) => {
       if (!ev.changedTouches || !ev.changedTouches[0]) return;
       const t = ev.changedTouches[0];
-      console.log("[GRID] touchend", t.clientX, t.clientY);
       onTap(t.clientX, t.clientY, ev);
     }, { passive: false });
   }
