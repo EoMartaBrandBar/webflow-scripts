@@ -20,7 +20,8 @@ const IMAGE_RES = 512;
 const CANVAS_W = IMAGE_RES;
 const CANVAS_H = Math.round(IMAGE_RES * (TILE_HEIGHT / TILE_WIDTH));
 
-const FALLBACK_URL = `https://picsum.photos/${IMAGE_RES}?random=1`;
+const FALLBACK_URL = `https://picsum.photos/${IMAGE_RES}?random=1`;  // Backtick + `
+
 
 const distortionShader = {
 uniforms: {
@@ -200,8 +201,8 @@ categories
 }).filter(Boolean);
 
 console.log(`[GRID] Összes érvényes CMS elem: ${items.length}, összes kategória: ${totalCategories}`);
-return items;
-}
+console.log(`[GRID] Aktív filterek száma: ${active.length}`);
+
 
 function getActiveCategories() {
 const activeNodes = Array.from(document.querySelectorAll('.filter_text[filter="true"]'));
@@ -566,25 +567,31 @@ this.hoveredMesh = null;
 }
 });
 
-this.renderer.domElement.addEventListener("click", (ev) => {
-if (!this.allMeshesLoaded) return;
-if (this.isDown || this.isDragging) return;
-
-const rect = this.renderer.domElement.getBoundingClientRect();
-const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-const y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-this.mouse.set(x, y);
-this.raycaster.setFromCamera(this.mouse, this.camera);
-const intersects = this.raycaster.intersectObjects(this.clickableMeshes, true);
-if (intersects.length > 0) {
-const mesh = intersects[0].object;
-const link = mesh.userData.link;
-if (link && link !== "#") {
-window.location.href = link;
-}
-}
-}, false);
-}
+this.renderer.domElement.addEventListener("pointerdown", (ev) => {
+  if (!this.allMeshesLoaded) return;
+  
+  // Threshold check MINDIG (isDown még false lehet)
+  if (Math.abs(this.startX - ev.clientX) < 3 && 
+      Math.abs(this.startY - ev.clientY) < 3 &&
+      !this.isDragging) {
+    
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    this.mouse.set(x, y);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const intersects = this.raycaster.intersectObjects(this.clickableMeshes, true);
+    
+    if (intersects.length > 0) {
+      const mesh = intersects[0].object;
+      const link = mesh.userData.link;
+      if (link && link !== "#") {
+        ev.preventDefault();
+        window.location.href = link;
+      }
+    }
+  }
+}, { passive: false });
 
 render() {
 this.composer.render();
